@@ -1,7 +1,6 @@
 {application, tivan,
  [{description, "Wrapper for mnesia with loaded functionality"},
-%  {vsn, {cmd, "git describe --tags"}},
-  {vsn, semver},
+  {vsn, "1.2.15"},
   {registered, []},
   {mod, { tivan_app, []}},
   {applications,
