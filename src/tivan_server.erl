@@ -743,7 +743,7 @@ paginate(Objects, #{limit := Limit} = Options, Table) ->
   Cache = case maps:find(cache, Options) of
             error ->
               initialize_cache(Objects);
-            {ok, Id} when is_reference(Id) ->
+            {ok, Id} when is_atom(Id); is_reference(Id) ->
               case tivan_page:info(Id) of
                 undefined ->
                   initialize_cache(Objects);
