@@ -1,6 +1,6 @@
 {application, tivan,
  [{description, "Wrapper for mnesia with loaded functionality"},
-  {vsn, "1.2.15"},
+  {vsn, "1.3.0"},
   {registered, []},
   {mod, { tivan_app, []}},
   {applications,
