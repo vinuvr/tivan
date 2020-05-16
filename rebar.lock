@@ -3,13 +3,10 @@
  {<<"lager">>,{pkg,<<"lager">>,<<"3.8.0">>},0},
  {<<"mnesia_rocksdb">>,
   {git,"https://gitlab.com/arknode.io/mnesia_rocksdb.git",
-       {ref,"81af12b2691b24d8ce204ce2539618e691da5bb4"}},
+       {ref,"5a91b6e7815a3b053bb1190d3d03c0019d813cbb"}},
   0},
  {<<"quickrand">>,{pkg,<<"quickrand">>,<<"1.8.0">>},1},
- {<<"rocksdb">>,
-  {git,"https://gitlab.com/arknode.io/erlang-rocksdb.git",
-       {ref,"a570f3d10dc8a91daf774d19b248cec5a08ddc34"}},
-  1},
+ {<<"rocksdb">>,{pkg,<<"rocksdb">>,<<"1.5.1">>},1},
  {<<"sext">>,{pkg,<<"sext">>,<<"1.6.0">>},1},
  {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"1.8.0">>},0}]}.
 [
@@ -17,6 +14,7 @@
  {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>},
  {<<"lager">>, <<"3402B9A7E473680CA179FC2F1D827CAB88DD37DD1E6113090C6F45EF05228A1C">>},
  {<<"quickrand">>, <<"E47CE597FF067385FF5836C8C7706AC7F8AA7B47DD90C6417E05B64696F872FA">>},
+ {<<"rocksdb">>, <<"016861FBFB1F76EC2C48F745FCA1F6E140FC0F27ADC8C389C4CABCE4A79B5F2F">>},
  {<<"sext">>, <<"E5466AC5A9622AB1A6BCA4311913515082BB0F6A6799C73400906C0CD141AD5D">>},
  {<<"uuid">>, <<"280014F8FF57FCE36EE6E91C3ECF21CBFCE78AAE9854C09597BB4C11E27B66D6">>}]}
 ].
