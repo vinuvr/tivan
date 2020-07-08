@@ -10,6 +10,8 @@
 
 -behaviour(gen_server).
 
+-define(BACKUP_FILE, "tivan.backup").
+
 %% API
 -export([start_link/0
         ,create/1
@@ -17,6 +19,12 @@
         ,drop/1
         ,clear/1
         ,is_local/1
+        ,backup/0
+        ,backup/1
+        ,restore/0
+        ,restore/1
+        ,inspect_backup/0
+        ,inspect_backup/1
         ,info/0
         ,info/1
         ,info/2]).
@@ -57,6 +65,25 @@ clear(Table) when is_atom(Table) ->
 
 is_local(Table) ->
   lists:member(Table, mnesia:system_info(local_tables)).
+
+backup() ->
+  backup(#{}).
+
+backup(Options) ->
+  gen_server:call(?MODULE, {backup, Options}).
+
+restore() ->
+  restore(#{}).
+
+restore(Options) ->
+  gen_server:call(?MODULE, {restore, Options}).
+
+inspect_backup() ->
+  BackupFilename = application:get_env(backup_file, tivan, ?BACKUP_FILE),
+  inspect_backup(BackupFilename).
+
+inspect_backup(BackupFilename) ->
+  do_inspect_backup(BackupFilename).
 
 info() -> mnesia:info().
 
@@ -103,7 +130,13 @@ handle_call({create, Table, Options}, _From, State) ->
   Reply = do_create(Table, Options),
   {reply, Reply, State};
 handle_call({clear, Table}, _From, State) ->
-  Reply = handle_clear(Table),
+  Reply = do_clear(Table),
+  {reply, Reply, State};
+handle_call({backup, Options}, _From, State) ->
+  Reply = do_backup(Options),
+  {reply, Reply, State};
+handle_call({restore, Options}, _From, State) ->
+  Reply = do_restore(Options),
   {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   Reply = ok,
@@ -120,7 +153,7 @@ handle_call(_Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast({drop, Table}, State) ->
-  handle_drop(Table),
+  do_drop(Table),
   {noreply, State};
 handle_cast(_Msg, State) ->
   {noreply, State}.
@@ -323,9 +356,193 @@ transform_function(Table, AttributesExisting, Attributes, Defaults) ->
                             )])
   end.
 
-handle_drop(Table) ->
+do_drop(Table) ->
   mnesia:delete_table(Table).
 
-handle_clear(Table) ->
+do_clear(Table) ->
   mnesia:clear_table(Table).
 
+do_backup(Options) ->
+  BackupFilename = maps:get(file, Options
+                           ,application:get_env(backup_file, tivan, ?BACKUP_FILE)),
+  TablesToBackup = maps:get(tables, Options
+                           ,tables_to_backup()),
+  case create_backup_file(BackupFilename) of
+    {ok, Fd} ->
+      lists:foreach(
+        fun(Table) ->
+            backup_table(Table, Fd)
+        end,
+        TablesToBackup
+       ),
+      close_backup_file(BackupFilename, Fd);
+    Error ->
+      Error
+  end.
+
+create_backup_file(BackupFilename) ->
+  TmpFilename = lists:concat([BackupFilename, ".TMP"]),
+  file:delete(TmpFilename),
+  disk_log:open([{name, make_ref()}, {file, TmpFilename}, {repair, false}, {linkto, self()}]).
+
+tables_to_backup() ->
+  mnesia:system_info(tables) -- [schema].
+
+backup_table(Table, Fd) ->
+  write_table_def(Table, Fd),
+  write_table_recs(Table, Fd).
+
+write_table_def(Table, Fd) ->
+  Attributes = mnesia:table_info(Table, attributes),
+  Indexes = mnesia:table_info(Table, index),
+  StorageType = mnesia:table_info(Table, storage_type),
+  Type = mnesia:table_info(Table, type),
+  TabDef = {create, Table, Attributes, Indexes, StorageType, Type},
+  disk_log:log(Fd, TabDef).
+
+write_table_recs(Table, Fd) ->
+  Key = mnesia:dirty_first(Table),
+  write_table_recs(Table, Fd, Key).
+
+write_table_recs(_Table, _Fd, '$end_of_table') -> ok;
+write_table_recs(Table, Fd, Key) ->
+  Recs = mnesia:dirty_read(Table, Key),
+  disk_log:log_terms(Fd, Recs),
+  NextKey = mnesia:dirty_next(Table, Key),
+  write_table_recs(Table, Fd, NextKey).
+
+close_backup_file(BackupFilename, Fd) ->
+  disk_log:sync(Fd),
+  disk_log:close(Fd),
+  file:delete(BackupFilename),
+  TmpFilename = lists:concat([BackupFilename, ".TMP"]),
+  file:rename(TmpFilename, BackupFilename).
+
+do_restore(Options) ->
+  BackupFilename = maps:get(file, Options
+                           ,application:get_env(backup_file, tivan, ?BACKUP_FILE)),
+  case open_backup_file(BackupFilename) of
+    {ok, Fd} ->
+      Reply = restore_backup(Fd, Options),
+      disk_log:close(Fd),
+      Reply;
+    Error ->
+      Error
+  end.
+
+open_backup_file(BackupFilename) ->
+  case file:read_file_info(BackupFilename) of
+    {error, Reason} ->
+      {error, Reason};
+    _FileInfo ->
+      case disk_log:open([{file, BackupFilename}
+                         ,{name, make_ref()}
+                         ,{repair, false}
+                         ,{mode, read_only}
+                         ,{linkto, self()}]) of
+        {ok, Fd} ->
+          {ok, Fd};
+        {repaired, Fd, _, _} ->
+          {ok, Fd};
+        {error, Reason} ->
+          {error, Reason}
+      end
+  end.
+
+restore_backup(Fd, Options) ->
+  restore_backup(Fd, Options, start).
+
+restore_backup(Fd, Options, Start) ->
+  case disk_log:chunk(Fd, Start) of
+    {error, Reason} ->
+      {error, Reason};
+    eof ->
+      ok;
+    {Cont, Chunk} ->
+      restore_chunk(Chunk, Options),
+      restore_backup(Fd, Options, Cont);
+    {Cont, Chunk, _BadBytes} ->
+      restore_chunk(Chunk, Options),
+      restore_backup(Fd, Options, Cont)
+  end.
+
+restore_chunk([], _) -> ok;
+restore_chunk([{create, Table, Attributes, Indexes, StorageType, Type}|Chunk], Options) ->
+  IsTableSelected = case maps:find(tables, Options) of
+                      error -> true;
+                      {ok, Tables} -> lists:member(Table, Tables)
+                    end,
+  case maps:get(create, Options, true) of
+    true when IsTableSelected ->
+      mnesia:create_table(Table, [{attributes, Attributes}
+                                 ,{index, Indexes}
+                                 ,{StorageType, [node()]}
+                                 ,{type, Type}]);
+    _ -> ignore
+  end,
+  restore_chunk(Chunk, Options);
+restore_chunk([Row|Chunk], Options) ->
+  Table = element(1, Row),
+  case maps:find(tables, Options) of
+    error -> mnesia:dirty_write(Row);
+    {ok, Tables} ->
+      case lists:member(Table, Tables) of
+        true -> mnesia:dirty_write(Row);
+        false -> ignore
+      end
+  end,
+  restore_chunk(Chunk, Options).
+
+do_inspect_backup(BackupFilename) ->
+  case open_backup_file(BackupFilename) of
+    {ok, Fd} ->
+      Reply = read_backup(Fd),
+      disk_log:close(Fd),
+      Reply;
+    Error ->
+      Error
+  end.
+
+read_backup(Fd) ->
+  read_backup(Fd, start, #{}).
+
+read_backup(Fd, Start, Info) ->
+  case disk_log:chunk(Fd, Start) of
+    {error, Reason} ->
+      {error, Reason};
+    eof ->
+      format_info(Info);
+    {Cont, Chunk} ->
+      InfoU = read_chunk(Chunk, Info),
+      read_backup(Fd, Cont, InfoU);
+    {Cont, Chunk, _BadBytes} ->
+      InfoU = read_chunk(Chunk, Info),
+      read_backup(Fd, Cont, InfoU)
+  end.
+
+read_chunk([], Info) -> Info;
+read_chunk([{create, Table, Attributes, Indexes, StorageType, Type}|Chunk], Info) ->
+  read_chunk(Chunk, Info#{Table => {Attributes, Indexes, StorageType, Type, 0}});
+read_chunk([Row|Chunk], Info) ->
+  Table = element(1, Row),
+  TableInfo = case maps:find(Table, Info) of
+                error -> ignore;
+                {ok, {Attributes, Indexes, StorageType, Type, C}} ->
+                  {Attributes, Indexes, StorageType, Type, C+1}
+              end,
+  read_chunk(Chunk, Info#{Table => TableInfo}).
+
+format_info(Info) ->
+  maps:fold(
+    fun(Table, {Attributes, Indexes, StorageType, Type, RowCount}, InfoAcc) ->
+        TableInfo = #{table => Table
+                     ,attributes => Attributes
+                     ,indexes => Indexes
+                     ,storage_type => StorageType
+                     ,type => Type
+                     ,row_count => RowCount},
+        [TableInfo|InfoAcc]
+    end,
+    [],
+    Info
+   ).

@@ -11,6 +11,12 @@
         ,create/2
         ,drop/1
         ,clear/1
+        ,backup/0
+        ,backup/1
+        ,restore/0
+        ,restore/1
+        ,inspect_backup/0
+        ,inspect_backup/1
         ,is_local/1
         ,info/0
         ,info/1
@@ -37,6 +43,24 @@ clear(Table) ->
 
 is_local(Table) ->
   tivan_schema:is_local(Table).
+
+backup() ->
+  tivan_schema:backup().
+
+backup(Options) ->
+  tivan_schema:backup(Options).
+
+restore() ->
+  tivan_schema:restore().
+
+restore(Options) ->
+  tivan_schema:restore(Options).
+
+inspect_backup() ->
+  tivan_schema:inspect_backup().
+
+inspect_backup(BackupFilename) ->
+  tivan_schema:inspect_backup(BackupFilename).
 
 info() ->
   tivan_schema:info().
