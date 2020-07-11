@@ -70,13 +70,13 @@ backup() ->
   backup(#{}).
 
 backup(Options) ->
-  gen_server:call(?MODULE, {backup, Options}).
+  gen_server:call(?MODULE, {backup, Options}, infinity).
 
 restore() ->
   restore(#{}).
 
 restore(Options) ->
-  gen_server:call(?MODULE, {restore, Options}).
+  gen_server:call(?MODULE, {restore, Options}, infinity).
 
 inspect_backup() ->
   BackupFilename = application:get_env(backup_file, tivan, ?BACKUP_FILE),
@@ -472,7 +472,7 @@ restore_chunk([{create, Table, Attributes, Indexes, StorageType, Type}|Chunk], O
                       error -> true;
                       {ok, Tables} -> lists:member(Table, Tables)
                     end,
-  case maps:get(create, Options, true) of
+  case maps:get(recreate, Options, true) of
     true when IsTableSelected ->
       mnesia:create_table(Table, [{attributes, Attributes}
                                  ,{index, Indexes}
