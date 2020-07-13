@@ -15,43 +15,33 @@
         ,tags/2
         ,entities/2]).
 
-
 %%%===================================================================
 %%% API
 %%%===================================================================
 
 create(Name) ->
-  tivan:create(Name, #{columns => [tag_entity, created_on]
-                       ,type => ordered_set}).
+  tivan:create(Name, #{columns => [entity, {tag}], type => bag}).
 
 tag(Name, Entity, TagUnknownCase) ->
   Tag = string:uppercase(TagUnknownCase),
-  case tivan:get(Name, {Tag, Entity}) of
-    [] ->
-      Now = erlang:system_time(second),
-      tivan:put(Name, #{tag_entity => {Tag, Entity}, created_on => Now});
-    _ ->
-      {Tag, Entity}
-  end.
+  tivan:put(Name, #{entity => Entity, tag => Tag}).
 
 untag(Name, Entity, TagUnknownCase) ->
   Tag = string:uppercase(TagUnknownCase),
-  tivan:remove(Name, {Tag, Entity}).
+  tivan:remove(Name, #{entity => Entity, tag => Tag}).
 
 tags(Name, Entity) ->
-  TagEntities = tivan:get(Name, #{match => #{tag_entity => {2, 2, Entity}}
-                                   ,select => [tag_entity]}),
-  [ T || #{tag_entity := {T, _}} <- TagEntities ].
-
+  TagMaps = tivan:get(Name, #{match => #{entity => Entity}, select => [tag]}),
+  [ T || #{tag := T} <- TagMaps ].
 
 entities(Name, Tags) when is_list(Tags) ->
   case lists:filtermap(
          fun(TagUnknownCase) ->
              Tag = string:uppercase(TagUnknownCase),
-             case tivan:get(Name, #{match => #{tag_entity => {1, 2, Tag}}
-                                    , select => [tag_entity]}) of
+             case tivan:get(Name, #{match => #{tag => Tag}
+                                   ,select => [entity]}) of
                [] -> false;
-               TagEntities -> {true, [ E || #{tag_entity := {_, E}} <- TagEntities ]}
+               Entities -> {true, [ E || #{entity := E} <- Entities ]}
              end
          end,
          Tags
