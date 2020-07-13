@@ -623,12 +623,10 @@ objects_with_tags(Options, Table, #{key := Key} = TableDef, Objects) ->
   Match = maps:get(match, Options, #{}),
   IsTagSelected = Selects == [] orelse lists:member(tags, Selects),
   IsTagForMatch = maps:is_key(tags, Match) orelse maps:is_key('_', Match),
-  lager:info("TagsDef ~p, Select ~p, Match ~p, IsTagSelected ~p, IsTagForMatch ~p"
-             , [TagsDef, Selects, Match, IsTagSelected, IsTagForMatch]),
   case TagsDef of
     undefined ->
       Objects;
-    TagStoreName ->
+    TagStoreName when IsTagSelected ->
       TagsToSearch = maps:get(tags, Match, []) ++ maps:get('_', Match, []),
       Entities = tivan_tags:entities(TagStoreName, TagsToSearch),
       ObjectsU = if Objects == [], Entities =/= undefined ->
@@ -651,7 +649,9 @@ objects_with_tags(Options, Table, #{key := Key} = TableDef, Objects) ->
            (Object) -> Object
         end,
         ObjectsU
-       )
+       );
+    _ ->
+      Objects
   end.
 
 remove_key_if_not_asked(Options, #{key := Key} = TableDef, Objects) ->
