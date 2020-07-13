@@ -551,7 +551,9 @@ do_get(Table, Options, TableDefs) ->
 do_get_1(Table, Options, #{columns := ColumnsMap} = TableDef, TableDefs)
   when is_map(Options) ->
   ColumnsToMatch = ['_'|maps:keys(ColumnsMap)],
+  lager:info("ColumnsToMatch is ~p", [ColumnsToMatch]),
   OptionsFormatted = interpret_get_options(Options, ColumnsToMatch),
+  lager:info("OptionsFormatted is ~p", [OptionsFormatted]),
   OptionsForTags = options_for_tags(OptionsFormatted, TableDef),
   OptionsWithContext = case maps:find(read_context, TableDef) of
                          error ->
