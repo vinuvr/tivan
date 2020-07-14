@@ -13,7 +13,8 @@
         ,tag/3
         ,untag/3
         ,tags/2
-        ,entities/2]).
+        ,entities/2
+        ,entities/3]).
 
 %%%===================================================================
 %%% API
@@ -35,13 +36,28 @@ tags(Name, Entity) ->
   [ T || #{tag := T} <- TagMaps ].
 
 entities(Name, Tags) when is_list(Tags) ->
+  entities(Name, Tags, inclusive);
+entities(Name, TagUnknownCase) ->
+  Tag = string:uppercase(TagUnknownCase),
+  Entities = tivan:get(Name, #{match => #{tag => Tag}, select => [entity]}),
+  [ E || #{entity := E} <- Entities ].
+
+entities(Name, Tags, inclusive) ->
+  lists:usort(
+    lists:foldl(
+      fun(Tag, Entities) ->
+          Entities ++ entities(Name, Tag)
+      end,
+      [],
+      Tags
+     )
+   );
+entities(Name, Tags, exclusive) ->
   case lists:filtermap(
-         fun(TagUnknownCase) ->
-             Tag = string:uppercase(TagUnknownCase),
-             case tivan:get(Name, #{match => #{tag => Tag}
-                                   ,select => [entity]}) of
+         fun(Tag) ->
+             case entities(Name, Tag) of
                [] -> false;
-               Entities -> {true, [ E || #{entity := E} <- Entities ]}
+               Entities -> {true, Entities}
              end
          end,
          Tags
@@ -59,6 +75,5 @@ entities(Name, Tags) when is_list(Tags) ->
         end,
         EntityGroup
        )
-  end;
-entities(Name, Tag) -> entities(Name, [Tag]).
+  end.
 
