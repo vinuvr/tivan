@@ -550,7 +550,7 @@ do_get(Table, Options, TableDefs) ->
 
 do_get_1(Table, Options, #{columns := ColumnsMap} = TableDef, TableDefs)
   when is_map(Options) ->
-  ColumnsToMatch = ['_'|maps:keys(ColumnsMap)],
+  ColumnsToMatch = ['_', tags|maps:keys(ColumnsMap)],
   lager:info("ColumnsToMatch is ~p", [ColumnsToMatch]),
   OptionsFormatted = interpret_get_options(Options, ColumnsToMatch),
   lager:info("OptionsFormatted is ~p", [OptionsFormatted]),
@@ -629,7 +629,12 @@ objects_with_tags(Options, Table, #{key := Key} = TableDef, Objects) ->
     undefined ->
       Objects;
     TagStoreName when IsTagSelected ->
-      TagsToSearch = maps:get(tags, Match, []) ++ maps:get('_', Match, []),
+      TagsToSearch = case maps:get('_', Match, []) of
+                       TextSearch when is_binary(TextSearch) ->
+                         maps:get(tags, Match, []) ++ [TextSearch];
+                       TextSearch ->
+                         maps:get(tags, Match, []) ++ TextSearch
+                     end,
       Entities = tivan_tags:entities(TagStoreName, TagsToSearch),
       ObjectsU = if Objects == [], Entities =/= undefined ->
                       tivan:get(Table, Options#{match => maps:remove('_', Match)});
