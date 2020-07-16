@@ -468,17 +468,17 @@ restore_backup(Fd, Options, Start) ->
 
 restore_chunk([], _) -> ok;
 restore_chunk([{create, Table, Attributes, Indexes, StorageType, Type}|Chunk], Options) ->
-  IsTableSelected = case maps:find(tables, Options) of
-                      error -> true;
-                      {ok, Tables} -> lists:member(Table, Tables)
-                    end,
-  case maps:get(recreate, Options, true) of
-    true when IsTableSelected ->
+  case lists:member(Table, maps:get(tables, Options, [Table])) of
+    true ->
+      case maps:get(drop, Options, false) of
+        true -> do_drop(Table);
+        false -> ok
+      end,
       mnesia:create_table(Table, [{attributes, Attributes}
-                                 ,{index, Indexes}
-                                 ,{StorageType, [node()]}
-                                 ,{type, Type}]);
-    _ -> ignore
+                                  ,{index, Indexes}
+                                  ,{StorageType, [node()]}
+                                  ,{type, Type}]);
+    false -> ignore
   end,
   restore_chunk(Chunk, Options);
 restore_chunk([Row|Chunk], Options) ->
