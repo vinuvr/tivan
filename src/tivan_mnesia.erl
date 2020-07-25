@@ -105,6 +105,8 @@ get(Table, Options) when is_atom(Table), is_map(Options) ->
           {C, objects_to_map(Objects, Attributes, SelectWithPos, Match)}
       end
   end;
+get(Table, Keys) when is_list(Keys) ->
+  lists:flatten([ get(Table, Key) || Key <- Keys ]);
 get(Table, Key) when is_atom(Table) ->
   Context = application:get_env(tivan, read_context, async_dirty),
   Attributes = mnesia:table_info(Table, attributes),
