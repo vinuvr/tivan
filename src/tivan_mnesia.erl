@@ -84,15 +84,15 @@ get(Table, Options) when is_atom(Table), is_map(Options) ->
   SelectWithPos = select_with_position(Attributes, Select),
   case maps:find(continue, Options) of
     error ->
-      {MatchHead, GuardList} = prepare_mnesia_select(Table, Attributes, Match, Select),
+      MatchSpecs = prepare_match_spec(Table, Attributes, Match, Select),
       case maps:find(rows_limit, Options) of
         error ->
           Objects = mnesia:activity(Context, fun mnesia:select/2,
-                                    [Table, [{MatchHead, GuardList, ['$_']}]]),
+                                    [Table, MatchSpecs]),
           objects_to_map(Objects, Attributes, SelectWithPos, Match);
         {ok, RowsLimit} ->
           case mnesia:activity(Context, fun mnesia:select/4,
-                               [Table, [{MatchHead, GuardList, ['$_']}], RowsLimit, read])of
+                               [Table, MatchSpecs, RowsLimit, read])of
             '$end_of_table' -> {'$end_of_table', []};
             {Objects, C} ->
               {C, objects_to_map(Objects, Attributes, SelectWithPos, Match)}
@@ -113,39 +113,55 @@ get(Table, Key) when is_atom(Table) ->
   Objects = mnesia:activity(Context, fun mnesia:read/2, [Table, Key]),
   objects_to_map(Objects, Attributes, [], #{}).
 
-prepare_mnesia_select(Table, Attributes, Match, Select) ->
-  {MatchList, GuardList} = prepare_mnesia_select(Attributes, Match, Select, 1, [], []),
-  {list_to_tuple([Table|MatchList]), GuardList}.
+prepare_match_spec(Table, Attributes, Match, Select) ->
+  Key = hd(Attributes),
+  case maps:find(Key, Match) of
+    {ok, {mul, KeyValues}} when is_list(KeyValues) ->
+      lists:foldl(
+        fun(KeyValue, MatchSpecs) ->
+            MatchAKey = Match#{Key => KeyValue},
+            {MatchList, GuardList} = prepare_match_spec(
+                                       Attributes, MatchAKey, Select, 1, [], []
+                                      ),
+            [{list_to_tuple([Table|MatchList]), GuardList, ['$_']}|MatchSpecs]
+        end,
+        [],
+        KeyValues
+       );
+    _ ->
+      {MatchList, GuardList} = prepare_match_spec(Attributes, Match, Select, 1, [], []),
+      [{list_to_tuple([Table|MatchList]), GuardList, ['$_']}]
+  end.
 
-prepare_mnesia_select([], _Match, _Select, _Ref, MatchList, GuardList) ->
+prepare_match_spec([], _Match, _Select, _Ref, MatchList, GuardList) ->
   {lists:reverse(MatchList), GuardList};
-prepare_mnesia_select([Attribute|Attributes], Match, Select, Ref, MatchList, GuardList) ->
+prepare_match_spec([Attribute|Attributes], Match, Select, Ref, MatchList, GuardList) ->
   case maps:find(Attribute, Match) of
     error ->
       case lists:member(Attribute, Select) of
         false ->
-          prepare_mnesia_select(Attributes, Match, Select, Ref, ['_'|MatchList], GuardList);
+          prepare_match_spec(Attributes, Match, Select, Ref, ['_'|MatchList], GuardList);
         true ->
           RefAtom = mk_ref_atom(Ref),
-          prepare_mnesia_select(Attributes, Match, Select, Ref + 1, [RefAtom|MatchList], GuardList)
+          prepare_match_spec(Attributes, Match, Select, Ref + 1, [RefAtom|MatchList], GuardList)
       end;
     {ok, {eval, OpCode, Value}} when is_atom(OpCode) ->
       RefAtom = mk_ref_atom(Ref),
       Guard = {OpCode, RefAtom, Value},
-      prepare_mnesia_select(Attributes, Match, Select, Ref + 1, [RefAtom|MatchList],
+      prepare_match_spec(Attributes, Match, Select, Ref + 1, [RefAtom|MatchList],
                             [Guard|GuardList]);
     {ok, {Pos, Size, eval, OpCode, Value}} when is_integer(Pos), is_integer(Size), Pos =< Size,
                                                 is_atom(OpCode) ->
       RefAtom = mk_ref_atom(Ref),
       RefTuple = erlang:make_tuple(Size, '_', [{Pos, RefAtom}]),
       Guard = {OpCode, RefAtom, Value},
-      prepare_mnesia_select(Attributes, Match, Select, Ref + 1, [RefTuple|MatchList],
+      prepare_match_spec(Attributes, Match, Select, Ref + 1, [RefTuple|MatchList],
                             [Guard|GuardList]);
     {ok, {range, MinValue, MaxValue}} ->
       RefAtom = mk_ref_atom(Ref),
       GuardA = {'>=', RefAtom, MinValue},
       GuardB = {'=<', RefAtom, MaxValue},
-      prepare_mnesia_select(Attributes, Match, Select, Ref + 1, [RefAtom|MatchList],
+      prepare_match_spec(Attributes, Match, Select, Ref + 1, [RefAtom|MatchList],
                             [GuardA, GuardB|GuardList]);
     {ok, {Pos, Size, range, MinValue, MaxValue}} when is_integer(Pos), is_integer(Size),
                                                       Pos =< Size ->
@@ -153,7 +169,7 @@ prepare_mnesia_select([Attribute|Attributes], Match, Select, Ref, MatchList, Gua
       RefTuple = erlang:make_tuple(Size, '_', [{Pos, RefAtom}]),
       GuardA = {'>=', RefAtom, MinValue},
       GuardB = {'=<', RefAtom, MaxValue},
-      prepare_mnesia_select(Attributes, Match, Select, Ref + 1, [RefTuple|MatchList],
+      prepare_match_spec(Attributes, Match, Select, Ref + 1, [RefTuple|MatchList],
                             [GuardA, GuardB|GuardList]);
     {ok, {Pos, Size, Pre}} when is_integer(Pos),is_integer(Size),is_binary(Pre)
                                andalso binary_part(Pre, {byte_size(Pre), -3}) == <<"...">> ->
@@ -162,20 +178,20 @@ prepare_mnesia_select([Attribute|Attributes], Match, Select, Ref, MatchList, Gua
       StartsWith = binary_part(Pre, {0, byte_size(Pre)-3}),
       GuardA = {'>=', RefAtom, StartsWith},
       GuardB = {'=<', RefAtom, << StartsWith/binary, 255 >>},
-      prepare_mnesia_select(Attributes, Match, Select, Ref + 1, [RefTuple|MatchList],
+      prepare_match_spec(Attributes, Match, Select, Ref + 1, [RefTuple|MatchList],
                             [GuardA, GuardB|GuardList]);
     {ok, {Pos, Size, Value}} when is_integer(Pos),is_integer(Size) ->
       RefTuple = erlang:make_tuple(Size, '_', [{Pos, Value}]),
-      prepare_mnesia_select(Attributes, Match, Select, Ref, [RefTuple|MatchList], GuardList);
+      prepare_match_spec(Attributes, Match, Select, Ref, [RefTuple|MatchList], GuardList);
     {ok, Pre} when is_binary(Pre) andalso binary_part(Pre, {byte_size(Pre), -3}) == <<"...">> ->
       RefAtom = mk_ref_atom(Ref),
       StartsWith = binary_part(Pre, {0, byte_size(Pre)-3}),
       GuardA = {'>=', RefAtom, StartsWith},
       GuardB = {'=<', RefAtom, << StartsWith/binary, 255 >>},
-      prepare_mnesia_select(Attributes, Match, Select, Ref + 1, [RefAtom|MatchList],
+      prepare_match_spec(Attributes, Match, Select, Ref + 1, [RefAtom|MatchList],
                             [GuardA, GuardB|GuardList]);
     {ok, Value} ->
-      prepare_mnesia_select(Attributes, Match, Select, Ref, [Value|MatchList], GuardList)
+      prepare_match_spec(Attributes, Match, Select, Ref, [Value|MatchList], GuardList)
   end.
 
 mk_ref_atom(Ref) -> list_to_atom([$$|integer_to_list(Ref)]).
