@@ -28,6 +28,7 @@
         ,get_s/3
         ,remove/3
         ,remove_s/3
+        ,paginate/3
         ,initialize/1]).
 
 %% gen_server callbacks
@@ -83,6 +84,9 @@ remove(Server, Table, Object) ->
 
 remove_s(Server, Table, Object) ->
   gen_server:call(Server, {remove, Table, Object}).
+
+paginate(Table, Objects, Options) ->
+  do_paginate(Table, Objects, Options).
 
 initialize(Server) ->
   gen_server:cast(Server, initialize).
@@ -567,7 +571,7 @@ do_get_1(Table, Options, #{columns := ColumnsMap} = TableDef, TableDefs)
   ObjectsExpanded = [ expand(Object, OptionsFormatted, TableDef, TableDefs)
                       || Object <- ObjectsCleanedUp ],
   ObjectsFlattend = flatten(ObjectsExpanded, OptionsFormatted),
-  paginate(ObjectsFlattend, OptionsFormatted, Table);
+  do_paginate(Table, ObjectsFlattend, OptionsFormatted);
 do_get_1(Table, KeyValue, #{key := Key} = TableDef, TableDefs) ->
   do_get_1(Table, #{Key => KeyValue}, TableDef, TableDefs).
 
@@ -745,7 +749,7 @@ flatten(Object) ->
     _ -> Object
   end.
 
-paginate(Objects, #{limit := Limit} = Options, Table) ->
+do_paginate(Table, Objects, #{limit := Limit} = Options) ->
   Start = maps:get(start, Options, 1),
   Cache = case maps:find(cache, Options) of
             error ->
@@ -770,7 +774,7 @@ paginate(Objects, #{limit := Limit} = Options, Table) ->
   ObjectsLimited = tivan_page:get(Cache, #{start => Start, limit => Limit}),
   #{size := Size} = tivan_page:info(Cache),
   #{Table => ObjectsLimited, cache => Cache, size => Size};
-paginate(Objects, #{sort_column := SortColumn} = Options, _Table) ->
+do_paginate(_Table, Objects, #{sort_column := SortColumn} = Options) ->
   SortFun = case maps:get(sort_order, Options, asc) of
               desc ->
                 fun(#{SortColumn := ValueA}, #{SortColumn := ValueB}) ->
@@ -784,7 +788,7 @@ paginate(Objects, #{sort_column := SortColumn} = Options, _Table) ->
                 end
             end,
   lists:sort(SortFun, Objects);
-paginate(Objects, _Options, _Table) -> Objects.
+do_paginate(_Table, Objects, _Options) -> Objects.
 
 initialize_cache(Objects) ->
   Id = tivan_page:new(),
