@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
-%%% @author danny
-%%% @copyright (C) 2019, danny
+%%% @author Chaitanya Chalasani
+%%% @copyright (C) 2019, ArkNode.IO
 %%% @doc
 %%%
 %%% @end
