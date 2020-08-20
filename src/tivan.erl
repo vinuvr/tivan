@@ -27,7 +27,8 @@
         ,get/2
         ,get_last_key/1
         ,remove/2
-        ,remove/3]).
+        ,remove/3
+        ,update/3]).
 
 create(Table) ->
   tivan_schema:create(Table).
@@ -91,3 +92,6 @@ remove(Table, ObjectOrObjects) ->
 
 remove(Table, ObjectOrObjects, Options) ->
   tivan_mnesia:remove(Table, ObjectOrObjects, Options).
+
+update(Table, Options, Updates) ->
+  tivan_mnesia:update(Table, Options, Updates).

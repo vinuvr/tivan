@@ -13,7 +13,8 @@
         ,get/2
         ,get_last_key/1
         ,remove/2
-        ,remove/3]).
+        ,remove/3
+        ,update/3]).
 
 -define(ROWS_LIMIT, 1000).
 
@@ -285,3 +286,31 @@ remove(Table, Objects, _Options) when is_list(Objects) ->
   remove(Table, Objects, #{context => Context});
 remove(Table, ObjectOrKey, Options) ->
   remove(Table, [ObjectOrKey], Options).
+
+update(Table, Options, Updates) when is_atom(Table), is_map(Options), is_map(Updates) ->
+  Match = maps:get(match, Options, #{}),
+  Select = maps:get(select, Options, []),
+  Attributes = mnesia:table_info(Table, attributes),
+  MatchSpecs = prepare_match_spec(Table, Attributes, Match, Select),
+  Context = maps:get(context, Options, application:get_env(tivan, write_context, async_dirty)),
+  UpdateFun = fun() ->
+                  lists:map(
+                    fun(Record) ->
+                        RecordU = maps:fold(
+                                    fun(Key, Value, RecordA) ->
+                                        case string:str(Attributes, [Key]) of
+                                          0 -> RecordA;
+                                          P -> setelement(P+1, RecordA, Value)
+                                        end
+                                    end,
+                                    Record,
+                                    Updates
+                                   ),
+                        mnesia:write(RecordU),
+                        element(2, Record)
+                    end,
+                    mnesia:select(Table, MatchSpecs)
+                   )
+              end,
+  mnesia:activity(Context, UpdateFun).
+
