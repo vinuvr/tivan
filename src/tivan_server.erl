@@ -18,6 +18,8 @@
 -define(NATIVE_TYPES, [binary, list, tuple, atom, integer, float, second, millisecond, microsecond
                       ,map ,nanosecond, uuid, pid, boolean]).
 
+-define(LIMIT, 1000).
+
 %% API
 -export([start_link/4
         ,drop/2
@@ -28,6 +30,8 @@
         ,get_s/3
         ,remove/3
         ,remove_s/3
+        ,update/4
+        ,update_s/4
         ,paginate/3
         ,initialize/1]).
 
@@ -43,13 +47,6 @@
 %%% API
 %%%===================================================================
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Starts the server
-%%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
-%% @end
-%%--------------------------------------------------------------------
 start_link(Registration, Callback, Arguments, Options) ->
   Server = case Registration of
              {local, Name} -> Name;
@@ -84,6 +81,13 @@ remove(Server, Table, Object) ->
 
 remove_s(Server, Table, Object) ->
   gen_server:call(Server, {remove, Table, Object}).
+
+update(Server, Table, Options, Updates) ->
+  TableDefs = persistent_term:get({Server, table_defs}),
+  do_update(Table, Options, Updates, TableDefs).
+
+update_s(Server, Table, Options, Updates) ->
+  gen_server:call(Server, {update, Table, Options, Updates}).
 
 paginate(Table, Objects, Options) ->
   do_paginate(Table, Objects, Options).
@@ -139,8 +143,8 @@ handle_call({put, Table, Object}, _From, #{table_defs := TableDefs} = State) ->
 handle_call({get, Table, Options}, _From, #{table_defs := TableDefs} = State) ->
   Reply = do_get(Table, Options, TableDefs),
   {reply, Reply, State};
-handle_call({remove, Table, Object}, _From, #{table_defs := TableDefs} = State) ->
-  Reply = do_remove(Table, Object, TableDefs),
+handle_call({update, Table, Options, Updates}, _From, #{table_defs := TableDefs} = State) ->
+  Reply = do_update(Table, Options, Updates, TableDefs),
   {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   Reply = ok,
@@ -554,24 +558,27 @@ do_get(Table, Options, TableDefs) ->
 
 do_get_1(Table, Options, #{columns := ColumnsMap} = TableDef, TableDefs)
   when is_map(Options) ->
-  ColumnsToMatch = ['_', tags|maps:keys(ColumnsMap)],
-  lager:info("ColumnsToMatch is ~p", [ColumnsToMatch]),
-  OptionsFormatted = interpret_get_options(Options, ColumnsToMatch),
-  lager:info("OptionsFormatted is ~p", [OptionsFormatted]),
-  OptionsForTags = options_for_tags(OptionsFormatted, TableDef),
-  OptionsWithContext = case maps:find(read_context, TableDef) of
-                         error ->
-                           OptionsForTags;
-                         {ok, Context} ->
-                           OptionsForTags#{context => Context}
-                       end,
-  Objects = tivan:get(Table, OptionsWithContext),
-  ObjectsWithTags = objects_with_tags(OptionsWithContext, Table, TableDef, Objects),
-  ObjectsCleanedUp = remove_key_if_not_asked(OptionsFormatted, TableDef, ObjectsWithTags),
-  ObjectsExpanded = [ expand(Object, OptionsFormatted, TableDef, TableDefs)
-                      || Object <- ObjectsCleanedUp ],
-  ObjectsFlattend = flatten(ObjectsExpanded, OptionsFormatted),
-  do_paginate(Table, ObjectsFlattend, OptionsFormatted);
+  case try_fetch_cache(Table, Options) of
+    false ->
+      ColumnsToMatch = ['_', tags|maps:keys(ColumnsMap)],
+      OptionsFormatted = interpret_get_options(Options, ColumnsToMatch),
+      OptionsForTags = options_for_tags(OptionsFormatted, TableDef),
+      OptionsWithContext = case maps:find(read_context, TableDef) of
+                             error ->
+                               OptionsForTags;
+                             {ok, Context} ->
+                               OptionsForTags#{context => Context}
+                           end,
+      Objects = tivan:get(Table, OptionsWithContext),
+      ObjectsWithTags = objects_with_tags(OptionsWithContext, Table, TableDef, Objects),
+      ObjectsCleanedUp = remove_key_if_not_asked(OptionsFormatted, TableDef, ObjectsWithTags),
+      ObjectsExpanded = [ expand(Object, OptionsFormatted, TableDef, TableDefs)
+                          || Object <- ObjectsCleanedUp ],
+      ObjectsFlattend = flatten(ObjectsExpanded, OptionsFormatted),
+      do_paginate(Table, ObjectsFlattend, OptionsFormatted);
+    CacheReply ->
+      CacheReply
+  end;
 do_get_1(Table, KeyValue, #{key := Key} = TableDef, TableDefs) ->
   do_get_1(Table, #{Key => KeyValue}, TableDef, TableDefs).
 
@@ -749,31 +756,40 @@ flatten(Object) ->
     _ -> Object
   end.
 
+try_fetch_cache(Table, #{cache := CacheId} = Options)
+  when is_atom(CacheId); is_reference(CacheId) ->
+  case tivan_page:info(CacheId) of
+    undefined -> false;
+    _ ->
+      page_sort(CacheId, Options),
+      Start = maps:get(start, Options, 1),
+      Limit = maps:get(limit, Options, ?LIMIT),
+      ObjectsLimited = tivan_page:get(CacheId, #{start => Start, limit => Limit}),
+      #{size := Size} = tivan_page:info(CacheId),
+      #{Table => ObjectsLimited, cache => CacheId, size => Size}
+  end;
+try_fetch_cache(_Table, _Options) ->
+  false.
+
 do_paginate(Table, Objects, #{limit := Limit} = Options) ->
+  CacheId = case maps:find(cache, Options) of
+              error ->
+                initialize_cache(Objects);
+              {ok, Id} when is_atom(Id); is_reference(Id) ->
+                case tivan_page:info(Id) of
+                  undefined ->
+                    initialize_cache(Objects);
+                  _ ->
+                    Id
+                end
+            end,
+  page_sort(CacheId, Options),
   Start = maps:get(start, Options, 1),
-  Cache = case maps:find(cache, Options) of
-            error ->
-              initialize_cache(Objects);
-            {ok, Id} when is_atom(Id); is_reference(Id) ->
-              case tivan_page:info(Id) of
-                undefined ->
-                  initialize_cache(Objects);
-                _ ->
-                  Id
-              end
-          end,
-  case maps:find(sort_column, Options) of
-    error -> ok;
-    {ok, SortColumn} ->
-      SortOrder = case maps:get(sort_order, Options, asc) of
-                    desc -> desc;
-                    _ -> asc
-                  end,
-      tivan_page:sort(Cache, {SortColumn, SortOrder})
-  end,
-  ObjectsLimited = tivan_page:get(Cache, #{start => Start, limit => Limit}),
-  #{size := Size} = tivan_page:info(Cache),
-  #{Table => ObjectsLimited, cache => Cache, size => Size};
+  ObjectsLimited = tivan_page:get(CacheId, #{start => Start, limit => Limit}),
+  #{size := Size} = tivan_page:info(CacheId),
+  #{Table => ObjectsLimited, cache => CacheId, size => Size};
+do_paginate(Table, Objects, #{start := _Start} = Options) ->
+  do_paginate(Table, Objects, Options#{limit => ?LIMIT});
 do_paginate(_Table, Objects, #{sort_column := SortColumn} = Options) ->
   SortFun = case maps:get(sort_order, Options, asc) of
               desc ->
@@ -794,6 +810,17 @@ initialize_cache(Objects) ->
   Id = tivan_page:new(),
   ok = tivan_page:put(Id, Objects),
   Id.
+
+page_sort(CacheId, Options) ->
+  case maps:find(sort_column, Options) of
+    error -> ok;
+    {ok, SortColumn} ->
+      SortOrder = case maps:get(sort_order, Options, asc) of
+                    desc -> desc;
+                    _ -> asc
+                  end,
+      tivan_page:sort(CacheId, {SortColumn, SortOrder})
+  end.
 
 do_remove(Table, Object, TableDefs) ->
   case maps:find(Table, TableDefs) of
@@ -825,3 +852,15 @@ do_remove_1(Table, Object, #{key := Key} = TableDef) when is_map(Object) ->
   end;
 do_remove_1(Table, KeyValue, #{key := Key} = TableDef) ->
   do_remove_1(Table, #{Key => KeyValue}, TableDef).
+
+do_update(Table, Options, Updates, TableDefs)
+  when is_atom(Table), is_map(Options), is_map(Updates) ->
+  case maps:find(Table, TableDefs) of
+    error ->
+      {error, no_definition};
+    {ok, TableDef} ->
+      do_update_1(Table, Options, Updates, TableDef)
+  end.
+
+do_update_1(Table, Options, Updates, _TableDef) ->
+  tivan:update(Table, Options, Updates).
