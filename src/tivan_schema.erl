@@ -258,29 +258,61 @@ do_create(Table, Options) ->
   Memory = maps:get(memory, Options, true),
   Persist = maps:get(persist, Options, true),
   Type = maps:get(type, Options, set),
-  StorageType = if Memory, Persist, SchemaPersistFlag -> disc_copies;
-                   Persist, SchemaPersistFlag -> rocksdb_copies;
-                   Memory -> ram_copies end,
-  case catch mnesia:table_info(Table, storage_type) of
-    {'EXIT', _Reason} ->
-      case mnesia:create_table(Table, [{attributes, Attributes}, {index, Indexes}, {type, Type},
-                                       {StorageType, [node()]}|MnesiaOptions]) of
-        {atomic, ok} -> ok;
-        Error -> Error
-      end;
-    unknown ->
-      case mnesia:add_table_copy(Table, node(), StorageType) of
-        {atomic, ok} -> ok;
-        Error -> Error
-      end;
-    StorageType ->
+  StorageRequest = if Memory, Persist, SchemaPersistFlag -> disc_copies;
+                      Persist, SchemaPersistFlag -> rocksdb_copies;
+                      Memory -> ram_copies;
+                      true -> remote_copies
+                   end,
+  StorageType = case catch mnesia:table_info(Table, storage_type) of
+                  {'EXIT', _Reason} -> not_found;
+                  unknown -> remote_copies;
+                  St -> St
+                end,
+  case {StorageType, StorageRequest} of
+    {not_found, remote_copies} -> {error, not_found};
+    {not_found, _} -> create_table(Table, Attributes, Indexes, Type
+                                  ,StorageRequest, MnesiaOptions, Options);
+    {remote_copies, remote_copies} -> ok;
+    {remote_copies, _} -> copy_table(Table, Attributes, Indexes, StorageRequest, Options);
+    {_, remote_copies} -> remove_local(Table);
+    {StorageRequest, _} -> post_create(Table, Attributes, Indexes, Options);
+    {_, _} -> change_storage(Table, Attributes, Indexes, StorageRequest, Options)
+  end.
+
+create_table(Table, Attributes, Indexes, Type, StorageRequest, MnesiaOptions, Options) ->
+  case mnesia:create_table(Table, [{attributes, Attributes}, {index, Indexes}, {type, Type},
+                                   {StorageRequest, [node()]}|MnesiaOptions]) of
+    {atomic, ok} ->
+      post_create(Table, Attributes, Indexes, Options),
       ok;
-    _Other ->
-      case mnesia:change_table_copy_type(Table, node(), StorageType) of
-        {atomic, ok} -> ok;
-        Error -> Error
-      end
-  end,
+    Error -> Error
+  end.
+
+copy_table(Table, Attributes, Indexes, StorageRequest, Options) ->
+  case mnesia:add_table_copy(Table, node(), StorageRequest) of
+    {atomic, ok} ->
+      post_create(Table, Attributes, Indexes, Options),
+      ok;
+    Error -> Error
+  end.
+
+remove_local(Table) ->
+  case mnesia:del_table_copy(Table, node()) of
+    {atomic, ok} ->
+      ok;
+    Error -> Error
+  end.
+
+change_storage(Table, Attributes, Indexes, StorageRequest, Options) ->
+  case mnesia:change_table_copy_type(Table, node(), StorageRequest) of
+    {atomic, ok} ->
+      wait_for_tables([Table], 50000),
+      transform_if_needed(Table, Attributes, Indexes, Options),
+      ok;
+    Error -> Error
+  end.
+
+post_create(Table, Attributes, Indexes, Options) ->
   wait_for_tables([Table], 50000),
   transform_if_needed(Table, Attributes, Indexes, Options).
 
@@ -311,7 +343,6 @@ wait_for_tables(Tables, Time) ->
   end.
 
 transform_if_needed(Table, Attributes, Indexes, Options) ->
-  lager:info("Transform if needed for ~p", [{Table, Attributes, Indexes, Options}]),
   TransformFlag = maps:get(transform, Options, true),
   case mnesia:table_info(Table, attributes) of
     Attributes ->
@@ -319,11 +350,9 @@ transform_if_needed(Table, Attributes, Indexes, Options) ->
       IndexesExisting = [ lists:nth(X-1, Attributes)
                           || X <- mnesia:table_info(Table, index) ],
       IndexesToDelete = IndexesExisting -- Indexes,
-      IDRes = [ mnesia:del_table_index(Table, Index) || Index <- IndexesToDelete ],
-      lager:info("Deleting ~p indexes and response is ~p", [IndexesToDelete, IDRes]),
+      [ mnesia:del_table_index(Table, Index) || Index <- IndexesToDelete ],
       IndexesToAdd = Indexes -- IndexesExisting,
-      IARes = [ mnesia:add_table_index(Table, Index) || Index <- IndexesToAdd ],
-      lager:info("Adding ~p Indexes and response is ~p", [IndexesToAdd, IARes]);
+      [ mnesia:add_table_index(Table, Index) || Index <- IndexesToAdd ];
     AttributesExisting when not TransformFlag ->
       lager:error("The attributes are different ~p vs ~p.BUT transform flag not set."
                 ,[AttributesExisting, Attributes]);
@@ -332,15 +361,12 @@ transform_if_needed(Table, Attributes, Indexes, Options) ->
                 ,[AttributesExisting, Attributes]),
       IndexesExisting = [ lists:nth(X-1, AttributesExisting)
                           || X <- mnesia:table_info(Table, index) ],
-      lager:info("First dropping all additional indexes ~p", [IndexesExisting]),
-      IDRes = [ mnesia:del_table_index(Table, Index) || Index <- IndexesExisting ],
-      lager:info("All additional indexes drop response ~p", [IDRes]),
+      [ mnesia:del_table_index(Table, Index) || Index <- IndexesExisting ],
       Defaults = maps:get(defaults, Options, #{}),
       TransformFun = transform_function(Table, AttributesExisting, Attributes, Defaults),
       TRes = mnesia:transform_table(Table, TransformFun, Attributes),
       lager:info("Transform table response ~p", [TRes]),
-      IARes = [ mnesia:add_table_index(Table, Index) || Index <- Indexes ],
-      lager:info("Creating ~p Indexes and response is ~p", [Indexes, IARes])
+      [ mnesia:add_table_index(Table, Index) || Index <- Indexes ]
   end.
 
 transform_function(Table, AttributesExisting, Attributes, Defaults) ->

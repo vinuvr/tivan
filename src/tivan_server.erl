@@ -241,6 +241,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%             ,type => set |ordered_set | bag
 %%             ,audit => false | true
 %%             ,tags => undefined | TagStoreName
+%%             ,frag => undefined | {time | size | space, [{Value, Memory, Persist}, Value
+%%                                                        ,{Memory, Persist}]}
 %%             ,unique_combo => [] | [{column1, column2}, {... },... ]
 %%             ,read_context => SYSCONFIG | async_dirty | transaction | sync_transaction | etc
 %%             ,write_context => SYSCONFIG | async_dirty | transaction | sync_transaction | etc
@@ -268,7 +270,8 @@ process_tabledef(#{columns := ColumnsNoKey} = TableDef) ->
                 ColumnsNoAudit;
               true ->
                 ColumnsNoAudit#{a_ctime => #{type => integer}
-                               ,a_mtime => #{type => integer}}
+                               ,a_mtime => #{type => integer
+                                            ,index => true}}
             end,
   TableDef#{columns => Columns, key => Key}.
 
