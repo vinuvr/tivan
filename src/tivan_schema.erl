@@ -266,6 +266,7 @@ do_create(Table, Options) ->
   StorageType = case catch mnesia:table_info(Table, storage_type) of
                   {'EXIT', _Reason} -> not_found;
                   unknown -> remote_copies;
+                  {ext,rocksdb_copies,mnesia_rocksdb} -> rocksdb_copies;
                   St -> St
                 end,
   case {StorageType, StorageRequest} of
@@ -283,16 +284,14 @@ create_table(Table, Attributes, Indexes, Type, StorageRequest, MnesiaOptions, Op
   case mnesia:create_table(Table, [{attributes, Attributes}, {index, Indexes}, {type, Type},
                                    {StorageRequest, [node()]}|MnesiaOptions]) of
     {atomic, ok} ->
-      post_create(Table, Attributes, Indexes, Options),
-      ok;
+      post_create(Table, Attributes, Indexes, Options);
     Error -> Error
   end.
 
 copy_table(Table, Attributes, Indexes, StorageRequest, Options) ->
   case mnesia:add_table_copy(Table, node(), StorageRequest) of
     {atomic, ok} ->
-      post_create(Table, Attributes, Indexes, Options),
-      ok;
+      post_create(Table, Attributes, Indexes, Options);
     Error -> Error
   end.
 
@@ -306,15 +305,14 @@ remove_local(Table) ->
 change_storage(Table, Attributes, Indexes, StorageRequest, Options) ->
   case mnesia:change_table_copy_type(Table, node(), StorageRequest) of
     {atomic, ok} ->
-      wait_for_tables([Table], 50000),
-      transform_if_needed(Table, Attributes, Indexes, Options),
-      ok;
+      post_create(Table, Attributes, Indexes, Options);
     Error -> Error
   end.
 
 post_create(Table, Attributes, Indexes, Options) ->
   wait_for_tables([Table], 50000),
-  transform_if_needed(Table, Attributes, Indexes, Options).
+  transform_if_needed(Table, Attributes, Indexes, Options),
+  ok.
 
 get_attributes_indexes(#{columns := AttributesIndexes}) ->
   lists:foldr(

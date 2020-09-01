@@ -241,7 +241,12 @@ code_change(_OldVsn, State, _Extra) ->
 %%             ,type => set |ordered_set | bag
 %%             ,audit => false | true
 %%             ,tags => undefined | TagStoreName
-%%             ,frag => undefined | {time | size | space, [{Value, Memory, Persist}, Value
+%%             ,frag => undefined | #{scale => time | size | space
+%%                                   ,slabs => [#{value => Value, memory => true | false
+%%                                               ,persist => true | false}
+%%                                             ,#{memory => true | false
+%%                                               ,persist => true | false}]}
+%%             ,frag => undefined | {time | size | space, [{Value, Memory, Persist}
 %%                                                        ,{Memory, Persist}]}
 %%             ,unique_combo => [] | [{column1, column2}, {... },... ]
 %%             ,read_context => SYSCONFIG | async_dirty | transaction | sync_transaction | etc

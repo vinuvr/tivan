@@ -115,42 +115,59 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-do_init(Table, #{frag := {Scale, Slabs}} = Options)
-  when is_atom(Scale), is_list(Slabs) andalso length(Slabs) > 0 ->
-  do_init(Table, Scale, Slabs, Options, 1, []);
+do_init(Table, #{frag := #{scale := time, slabs := Slabs}} = Options)
+  when is_list(Slabs) andalso length(Slabs) > 0 ->
+  do_init(Table, time, Slabs, 1, Options, []);
+do_init(Table, #{frag := #{scale := size, slabs := Slabs}} = Options)
+  when is_list(Slabs) andalso length(Slabs) > 0 ->
+  do_init(Table, size, Slabs, 1, Options, []);
+do_init(Table, #{frag := #{scale := space, slabs := Slabs}} = Options)
+  when is_list(Slabs) andalso length(Slabs) > 0 ->
+  do_init(Table, space, Slabs, 1, Options, []);
 do_init(_Table, _Options) ->
   {error, bad_frag}.
 
-do_init(Table, Scale, [{Memory, Persist}|Slabs], N, Options, State) ->
-  do_init(Table, Scale, [{'_', Memory, Persist}|Slabs], N, Options, State);
-do_init(Table, Scale, [{Value, Memory, Persist}|Slabs], N, Options, State) ->
+do_init(Table, Scale, [#{value := Value
+                        ,memory := Memory
+                        ,persist := Persist}|Slabs], N, Options, State)
+  when is_integer(Value), is_boolean(Memory), is_boolean(Persist) ->
   OptionsU = Options#{memory => Memory, persist => Persist},
-  do_init(Table, Scale, [Value|Slabs], N, OptionsU, State);
-do_init(Table, Scale, [Value|Slabs], N, Options, State) ->
   TableFrag = list_to_atom(atom_to_list(Table)++"_"++integer_to_list(N)++"_"),
-  case tivan:create(TableFrag, Options) of
+  case tivan:create(TableFrag, OptionsU) of
     ok ->
       do_init(Table, Scale, Slabs, N + 1, Options, [{TableFrag, Scale, Value}|State]);
     Error ->
       Error
   end;
-do_init(Table, _Scale, [], _N, _Options, State) ->
-  StateU = lists:reverse(State),
-  persistent_term:put({?MODULE, Table}, StateU),
-  {ok, StateU}.
+do_init(Table, Scale, [#{memory := Memory, persist := Persist}], N, Options, State)
+  when is_boolean(Memory), is_boolean(Persist) ->
+  OptionsU = Options#{memory => Memory, persist => Persist},
+  do_init(Table, Scale, [], N, OptionsU, State);
+do_init(Table, Scale, [], N, Options, State) ->
+  TableFrag = list_to_atom(atom_to_list(Table)++"_"++integer_to_list(N)++"_"),
+  case tivan:create(TableFrag, Options) of
+    ok ->
+      StateU = lists:reverse([{TableFrag, Scale, '_'}|State]),
+      persistent_term:put({?MODULE, Table}, StateU),
+      {ok, StateU};
+    Error ->
+      Error
+  end;
+do_init(_Table, _Scale, _Slabs, _N, _Options, _State) ->
+  {error, bad_frag}.
 
-do_put([#{name := TableFrag}|_], ObjectOrObjects, Options) ->
+do_put([{TableFrag, _Scale, _Value}|_], ObjectOrObjects, Options) ->
   tivan:put(TableFrag, ObjectOrObjects, Options).
 
 do_get(Frags, Options) ->
   lists:flatten(
-    [ tivan:get(TableFrag, Options) || #{name := TableFrag} <- Frags ]
+    [ tivan:get(TableFrag, Options) || {TableFrag, _Scale, _Value} <- Frags ]
    ).
 
 do_remove(Frags, ObjectOrObjects, Options) ->
-  [ tivan:remove(TableFrag, ObjectOrObjects, Options) || #{name := TableFrag} <- Frags ].
+  [ tivan:remove(TableFrag, ObjectOrObjects, Options) || {TableFrag, _Scale, _Value} <- Frags ].
 
 do_update(Frags, Options, Updates) ->
   lists:flatten(
-    [ tivan:update(TableFrag, Options, Updates) || #{name := TableFrag} <- Frags ]
+    [ tivan:update(TableFrag, Options, Updates) || {TableFrag, _Scale, _Value} <- Frags ]
    ).
