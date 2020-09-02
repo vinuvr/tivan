@@ -870,5 +870,12 @@ do_update(Table, Options, Updates, TableDefs)
       do_update_1(Table, Options, Updates, TableDef)
   end.
 
-do_update_1(Table, Options, Updates, _TableDef) ->
-  tivan:update(Table, Options, Updates).
+do_update_1(Table, Options, Updates, #{key := Key, columns := ColumnsMap}) ->
+  ColumnsToMatch = ['_', tags|maps:keys(ColumnsMap)],
+  OptionsFormatted = interpret_get_options(Options, ColumnsToMatch),
+  lists:map(
+    fun(Value) ->
+        #{Key => Value}
+    end,
+    tivan:update(Table, OptionsFormatted, Updates)
+   ).
