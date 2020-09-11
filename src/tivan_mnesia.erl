@@ -289,9 +289,8 @@ remove(Table, ObjectOrKey, Options) ->
 
 update(Table, Options, Updates) when is_atom(Table), is_map(Options), is_map(Updates) ->
   Match = maps:get(match, Options, #{}),
-  Select = maps:get(select, Options, []),
   Attributes = mnesia:table_info(Table, attributes),
-  MatchSpecs = prepare_match_spec(Table, Attributes, Match, Select),
+  MatchSpecs = prepare_match_spec(Table, Attributes, Match, []),
   Context = maps:get(context, Options, application:get_env(tivan, write_context, async_dirty)),
   UpdateFun = fun() ->
                   lists:map(
