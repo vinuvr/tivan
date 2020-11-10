@@ -463,13 +463,13 @@ validate_type(Value, map, _Table, _Key, _KeyValue) ->
 validate_type(Value, pid, _Table, _Key, _KeyValue) ->
   is_pid(Value) andalso is_process_alive(Value);
 validate_type(Value, second, _Table, _Key, _KeyValue) when is_integer(Value) ->
-  (Value =< erlang:system_time(second)) and (Value > 0);
+  Value > 0;
 validate_type(Value, millisecond, _Table, _Key, _KeyValue) when is_integer(Value) ->
-  (Value =< erlang:system_time(millisecond)) and (Value > 0);
+  Value > 0;
 validate_type(Value, microsecond, _Table, _Key, _KeyValue) when is_integer(Value) ->
-  (Value =< erlang:system_time(microsecond)) and (Value > 0);
+  Value > 0;
 validate_type(Value, nanosecond, _Table, _Key, _KeyValue) when is_integer(Value) ->
-  (Value =< erlang:system_time(nanosecond)) and (Value > 0);
+  Value > 0;
 validate_type(Value, {any, Types}, _Table, _Key, _KeyValue) when is_list(Types) ->
   lists:any(
     fun(Type) -> validate_type(Value, Type, _Table, _Key, _KeyValue) end,
