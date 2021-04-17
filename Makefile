@@ -1,8 +1,10 @@
-.PHONY: default all build clean compile release shell
+.PHONY: default all build clean compile release shell compileInDocker
 
-export ERLANG_ROCKSDB_OPTS=-DWITH_SYSTEM_ROCKSDB=ON -DWITH_SNAPPY=ON -DWITH_LZ4=ON
+#export ERLANG_ROCKSDB_OPTS=-DWITH_SYSTEM_ROCKSDB=ON -DWITH_SNAPPY=ON -DWITH_LZ4=ON
 
 rebar='rebar3'
+DOCKER_HUB ?= packages.netstratum.com
+DOCKER_IMAGE ?= erlang_ubuntu:24.0
 
 default: compile
 all: clean compile test
@@ -16,3 +18,5 @@ test:
 	@$(rebar) do ct
 shell:
 	@$(rebar) shell
+compileInDocker:
+	@docker run -v /home:/home -v ${PWD}:/mnt -v "/etc/group:/etc/group:ro" -v "/etc/passwd:/etc/passwd:ro" -v "/etc/shadow:/etc/shadow:ro" -w /mnt -u $$(id -u):$$(id -g) $(DOCKER_HUB)/$(DOCKER_IMAGE) make
