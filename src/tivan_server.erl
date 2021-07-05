@@ -16,7 +16,7 @@
 -optional_callbacks([handle_info/1]).
 
 -define(NATIVE_TYPES, [binary, list, tuple, atom, integer, float, second, millisecond, microsecond
-                      ,map ,nanosecond, uuid, pid, boolean]).
+                      ,map ,nanosecond, uuid, pid, boolean, term]).
 
 -define(LIMIT, 1000).
 
@@ -442,6 +442,8 @@ validate_value(Value, ColumnDef, Table, Key, KeyValue) ->
       type_failed
   end.
 
+validate_type(_Value, term, _Table, _Key, _KeyValue) ->
+  true;
 validate_type(Value, uuid, _Table, _Key, _KeyValue) ->
   uuid:is_v4(uuid:string_to_uuid(binary_to_list(Value)));
 validate_type(Value, binary, _Table, _Key, _KeyValue) ->
