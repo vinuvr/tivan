@@ -16,7 +16,7 @@
 -optional_callbacks([handle_info/1]).
 
 -define(NATIVE_TYPES, [binary, list, tuple, atom, integer, float, second, millisecond, microsecond
-                      ,map ,nanosecond, uuid, pid, boolean, term, function]).
+                      ,map ,nanosecond, uuid, pid, boolean, term, function, datetime]).
 
 -define(LIMIT, 1000).
 
@@ -468,6 +468,13 @@ validate_type(Value, function, _Table, _Key, _KeyValue) ->
   is_function(Value);
 validate_type({Module, Function, Args}, function, _Table, _Key, _KeyValue) when is_list(Args)->
    erlang:function_exported(Module, Function, length(Args));
+validate_type({{YYYY, MM, DD}, {H, M, S}}, datetime, _Table, _Key, _KeyValue)
+  when is_integer(YYYY), is_integer(MM), is_integer(DD)
+      ,is_integer(H), is_integer(M), is_integer(S) ->
+  case calendar:valid_date(YYYY, MM, DD) of
+    true when H >= 0, H =< 24, M >= 0, M < 60, S >= 0, S < 60 -> true;
+    _ -> false
+  end;
 validate_type(Value, second, _Table, _Key, _KeyValue) when is_integer(Value) ->
   Value > 0;
 validate_type(Value, millisecond, _Table, _Key, _KeyValue) when is_integer(Value) ->
