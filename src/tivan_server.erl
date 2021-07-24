@@ -464,10 +464,10 @@ validate_type(Value, map, _Table, _Key, _KeyValue) ->
   is_map(Value);
 validate_type(Value, pid, _Table, _Key, _KeyValue) ->
   is_pid(Value) andalso is_process_alive(Value);
-validate_type(Value, function, _Table, _Key, _KeyValue) ->
-  is_function(Value);
 validate_type({Module, Function, Args}, function, _Table, _Key, _KeyValue) when is_list(Args)->
    erlang:function_exported(Module, Function, length(Args));
+validate_type(Value, function, _Table, _Key, _KeyValue) ->
+  is_function(Value);
 validate_type({{YYYY, MM, DD}, {H, M, S}}, datetime, _Table, _Key, _KeyValue)
   when is_integer(YYYY), is_integer(MM), is_integer(DD)
       ,is_integer(H), is_integer(M), is_integer(S) ->
