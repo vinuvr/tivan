@@ -532,6 +532,11 @@ validate_limit(Value, list, {Min, Max}) when is_integer(Min),is_integer(Max) ->
 validate_limit(Value, integer, {Min, Max}) when is_integer(Min),is_integer(Max) ->
   (Value >= Min) and (Value =< Max);
 validate_limit(Value, _Type, List) when is_list(List) -> lists:member(Value, List);
+validate_limit(Values, [Type], Limit) when is_list(Values) ->
+  lists:all(
+    fun(Value) -> validate_limit(Value, Type, Limit) end,
+    Values
+   );
 validate_limit(_Value, _Type, _Limit) -> true.
 
 validate_unique_combo(Object, Table, Key, [ComboTuple|UniqueComboList]) ->
