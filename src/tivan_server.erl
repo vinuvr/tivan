@@ -16,7 +16,7 @@
 -optional_callbacks([handle_info/1]).
 
 -define(NATIVE_TYPES, [binary, list, tuple, atom, integer, float, second, millisecond, microsecond
-                      ,map ,nanosecond, uuid, pid, boolean, term]).
+                      ,map ,nanosecond, uuid, pid, boolean, term, function]).
 
 -define(LIMIT, 1000).
 
@@ -464,6 +464,10 @@ validate_type(Value, map, _Table, _Key, _KeyValue) ->
   is_map(Value);
 validate_type(Value, pid, _Table, _Key, _KeyValue) ->
   is_pid(Value) andalso is_process_alive(Value);
+validate_type(Value, function, _Table, _Key, _KeyValue) ->
+  is_function(Value);
+validate_type({Module, Function, Args}, function, _Table, _Key, _KeyValue) when is_list(Args)->
+   erlang:function_exported(Module, Function, length(Args));
 validate_type(Value, second, _Table, _Key, _KeyValue) when is_integer(Value) ->
   Value > 0;
 validate_type(Value, millisecond, _Table, _Key, _KeyValue) when is_integer(Value) ->
