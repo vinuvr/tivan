@@ -41,19 +41,19 @@
 %%% API
 %%%===================================================================
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Starts the server
-%%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
-%% @end
-%%--------------------------------------------------------------------
+-spec start_link() -> {'ok', pid()}
+                    | {'error', {'already_started', pid()}}
+                    | {'error', Reason :: any()}.
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+-spec create(Table::mnesia:table()) -> 'ok'
+                                     | {'aborted', Reason :: any()}.
 create(Table) ->
   create(Table, #{memory => true, persist => true}).
 
+-spec create(Table::mnesia:table(), Options::map()) -> 'ok'
+                                                     | {'aborted', Reason :: any()}.
 create(Table, Options) when is_atom(Table), is_map(Options) ->
   gen_server:call(?MODULE, {create, Table, Options}, 60000).
 

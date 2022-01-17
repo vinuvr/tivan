@@ -18,14 +18,24 @@
 
 -define(ROWS_LIMIT, 1000).
 
+-spec put(Table :: mnesia:table(), Object :: map()) -> #{ Key :: atom() => Value :: any() }
+      ;  (Table :: mnesia:table(), [Object :: map()]) -> [ #{ Key::atom() => Value :: any() } ].
 put(Table, Objects) ->
   Context = application:get_env(tivan, write_context, transaction),
   put(Table, Objects, #{context => Context}).
 
+-spec put(Table :: mnesia:table()
+         ,Object :: map()
+         ,Options :: map()) -> #{ Key :: atom() => Value :: any() }
+      ;  (Table :: mnesia:table()
+         ,[Object :: map()]
+         ,Options :: map()) -> [ #{ Key :: atom() => Value :: any() } ].
 put(Table, Object, Options) when is_map(Object) ->
   [Key] = put(Table, [Object], Options),
   Key;
-put(Table, Objects, #{context := Context}) when is_atom(Table), is_list(Objects) ->
+put(Table, Objects, Options)
+  when is_atom(Table), is_list(Objects), is_map(Options) ->
+  Context = maps:get(context, Options, application:get_env(tivan, write_context, transaction)),
   Attributes = mnesia:table_info(Table, attributes),
   WriteFun = fun() ->
                  lists:map(
@@ -46,15 +56,20 @@ put(Table, Objects, #{context := Context}) when is_atom(Table), is_list(Objects)
                    Objects
                   )
              end,
-  mnesia:activity(Context, WriteFun);
-put(Table, Objects, _Options) ->
-  Context = application:get_env(tivan, write_context, transaction),
-  put(Table, Objects, #{context => Context}).
+  mnesia:activity(Context, WriteFun).
 
+-spec get(Table :: mnesia:table()) -> { NextKey :: any(), [Row :: map()] }
+                                    | { '$end_of_table' | [Row :: map()] }.
 get(Table) ->
   RowsLimit = application:get_env(tivan, default_rows_limit, ?ROWS_LIMIT),
   get(Table, #{rows_limit => RowsLimit}).
 
+-spec get(Table :: mnesia:table(), Options :: map()) -> { NextKey :: any(), [Row :: map()] }
+                                            | { Continue :: any(), [Row :: map()] }
+                                            | { '$end_of_table' | [Row :: map()] }
+                                            | [ Row :: map() ]
+      ;  (Table :: mnesia:table(), Key :: any()) -> [ Row :: map() ]
+      ;  (Table :: mnesia:table(), [Key :: any()]) -> [ Row :: map() ].
 get(Table, #{rows_limit := RowsLimit} = Options) when map_size(Options) == 1 ->
   get(Table, #{start_key => mnesia:dirty_first(Table), rows_limit => RowsLimit});
 get(Table, #{start_key := StartKey} = Options) when map_size(Options) == 1 ->
@@ -260,14 +275,17 @@ pattern_lowercase(Pattern) when is_list(Pattern) ->
 pattern_lowercase(Pattern) when is_binary(Pattern) ->
   string:lowercase(Pattern).
 
+-spec get_last_key(Table::mnesia:table()) -> any().
 get_last_key(Table) ->
   Context = application:get_env(tivan, read_context, async_dirty),
   mnesia:activity(Context, fun mnesia:last/1, [Table]).
 
+-spec remove(Table::mnesia:table(), Objects::[map()]) -> ok.
 remove(Table, Objects) ->
   Context = application:get_env(tivan, write_context, transaction),
   remove(Table, Objects, #{context => Context}).
 
+-spec remove(Table::mnesia:table(), Objects::[map()], Options::map()) -> ok.
 remove(Table, Objects, #{context := Context}) when is_atom(Table), is_list(Objects) ->
   Key = hd(mnesia:table_info(Table, attributes)),
   RemoveFun = fun() ->
@@ -287,6 +305,7 @@ remove(Table, Objects, _Options) when is_list(Objects) ->
 remove(Table, ObjectOrKey, Options) ->
   remove(Table, [ObjectOrKey], Options).
 
+-spec update(Table::mnesia:table(), Options::map(), Updates::map()) -> [any()].
 update(Table, Options, Updates) when is_atom(Table), is_map(Options), is_map(Updates) ->
   Match = maps:get(match, Options, #{}),
   Attributes = mnesia:table_info(Table, attributes),
