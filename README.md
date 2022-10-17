@@ -14,6 +14,7 @@ Some of the functionality of the wrapper are -
 - Pagination through select count and ets cache
 - Sorting of rows in the ets cache
 - A server behaviour for CRUD operations with data type, limit and unique creteria validations
+- Origin of the conflict
 
 Build
 -----
