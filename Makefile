@@ -3,7 +3,7 @@
 #export ERLANG_ROCKSDB_OPTS=-DWITH_SYSTEM_ROCKSDB=ON -DWITH_SNAPPY=ON -DWITH_LZ4=ON
 
 rebar='rebar3'
-DOCKER_HUB ?= packages.netstratum.com
+DOCKER_HUB ?= cchalasani
 DOCKER_IMAGE ?= erlang_ubuntu:24.0
 
 default: compile
