@@ -4,7 +4,7 @@
 
 rebar='rebar3'
 DOCKER_HUB ?= cchalasani
-DOCKER_IMAGE ?= erlang_ubuntu:24.0
+DOCKER_IMAGE ?= erlang_ubuntu:25.1
 
 default: compile
 all: clean compile test
