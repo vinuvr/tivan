@@ -2,7 +2,6 @@ tivan
 =====
 
 A wrapper for mnesia to use maps and map functions for the CRUD database operations and complex queries in place of records and qlc.
-Also providing additional functionalty over ets and pagination options
 
 Some of the functionality of the wrapper are -
 - Table definitions using maps instead of records
