@@ -1,28 +1,31 @@
 {"1.2.0",
 [{<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},1},
+ {<<"hut">>,{pkg,<<"hut">>,<<"1.4.0">>},1},
  {<<"lager">>,{pkg,<<"lager">>,<<"3.9.2">>},0},
  {<<"mnesia_rocksdb">>,
   {git,"https://gitlab.com/arknode.io/mnesia_rocksdb.git",
-       {ref,"e3aa95089c4a31d2f9a4d5e8cff75b5f2518f3b4"}},
+       {ref,"d4970a74321127fde748bcf67f09a306f7376e66"}},
   0},
- {<<"quickrand">>,{pkg,<<"quickrand">>,<<"2.0.2">>},1},
+ {<<"quickrand">>,{pkg,<<"quickrand">>,<<"2.0.7">>},1},
  {<<"rocksdb">>,
-  {git,"https://gitlab.com/arknode.io/erlang-rocksdb.git",
-       {ref,"a570f3d10dc8a91daf774d19b248cec5a08ddc34"}},
+  {git,"https://github.com/emqx/erlang-rocksdb.git",
+       {ref,"d2e82e8bc31966aee3f02967a9e5e96d48698d41"}},
   1},
- {<<"sext">>,{pkg,<<"sext">>,<<"1.6.0">>},1},
- {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"2.0.2">>},0}]}.
+ {<<"sext">>,{pkg,<<"sext">>,<<"1.8.0">>},1},
+ {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"2.0.7">>},0}]}.
 [
 {pkg_hash,[
  {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>},
+ {<<"hut">>, <<"7A1238EC00F95C9EC75412587EE11AC652ECA308A7F4B8CC9629746D579D6CF0">>},
  {<<"lager">>, <<"4CAB289120EB24964E3886BD22323CB5FEFE4510C076992A23AD18CF85413D8C">>},
- {<<"quickrand">>, <<"1D73FAA52E0C149FCBC72A63C26135FF68BE8FA7870675C73645896788A7540C">>},
- {<<"sext">>, <<"E5466AC5A9622AB1A6BCA4311913515082BB0F6A6799C73400906C0CD141AD5D">>},
- {<<"uuid">>, <<"0D1CA9D94CA3B058467BCE20B7706CC816A2BDBBE0574DD008936AE97EA4EBE7">>}]},
+ {<<"quickrand">>, <<"D2BD76676A446E6A058D678444B7FDA1387B813710D1AF6D6E29BB92186C8820">>},
+ {<<"sext">>, <<"90A95B889F5C781B70BBCF44278B763148E313C376B60D87CE664CB1C1DD29B5">>},
+ {<<"uuid">>, <<"B2078D2CC814F53AFA52D36C91E08962C7E7373585C623F4C0EA6DFB04B2AF94">>}]},
 {pkg_hash_ext,[
  {<<"goldrush">>, <<"99CB4128CFFCB3227581E5D4D803D5413FA643F4EB96523F77D9E6937D994CEB">>},
+ {<<"hut">>, <<"7AF8704B9BAE98A336F70D9560FC3C97F15665265FA603DBD05352E63D6EBB03">>},
  {<<"lager">>, <<"7F904D9E87A8CB7E66156ED31768D1C8E26EBA1D54F4BC85B1AA4AC1F6340C28">>},
- {<<"quickrand">>, <<"E21C6C7F29CA995468662085CA54D7D09E861C180A9DFEC2CF4A2E75364A16D6">>},
- {<<"sext">>, <<"AD1CBEC06A3FEE2AE2191D79E815B810BA8329346D40160747D58CA7C75E3EF2">>},
- {<<"uuid">>, <<"4866CA7B3BD0265BC371590DCD0FE2832FC08588A071B72D07E09E23F163D0D6">>}]}
+ {<<"quickrand">>, <<"B8ACBF89A224BC217C3070CA8BEBC6EB236DBE7F9767993B274084EA044D35F0">>},
+ {<<"sext">>, <<"BC6016CB8690BAF677EACACFE6E7CADFEC8DC7E286CBBED762F6CD55B0678E73">>},
+ {<<"uuid">>, <<"4E4C5CA3461DC47C5E157ED42AA3981A053B7A186792AF972A27B14A9489324E">>}]}
 ].
