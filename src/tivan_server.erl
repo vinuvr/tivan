@@ -43,6 +43,20 @@
         ,terminate/2
         ,code_change/3]).
 
+-ignore_xref([start_link/4
+        ,drop/2
+        ,table_defs/1
+        ,put/3
+        ,put_s/3
+        ,get/3
+        ,get_s/3
+        ,remove/3
+        ,remove_s/3
+        ,update/4
+        ,update_s/4
+        ,paginate/3
+        ,initialize/1]).
+
 %%%===================================================================
 %%% API
 %%%===================================================================

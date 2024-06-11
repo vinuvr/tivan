@@ -30,6 +30,29 @@
         ,remove/3
         ,update/3]).
 
+-ignore_xref([create/1
+        ,create/2
+        ,drop/1
+        ,clear/1
+        ,backup/0
+        ,backup/1
+        ,restore/0
+        ,restore/1
+        ,inspect_backup/0
+        ,inspect_backup/1
+        ,is_local/1
+        ,info/0
+        ,info/1
+        ,info/2
+        ,put/2
+        ,put/3
+        ,get/1
+        ,get/2
+        ,get_last_key/1
+        ,remove/2
+        ,remove/3
+        ,update/3]).
+
 create(Table) ->
   tivan_schema:create(Table).
 
