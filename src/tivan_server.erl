@@ -188,7 +188,6 @@ handle_cast(_Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info(Info, #{callback := Callback} = State) ->
-  lager:info("Info received ~p", [Info]),
   case erlang:function_exported(Callback, handle_info, 1) of
     true -> Callback:handle_info(Info);
     false -> ok
@@ -302,13 +301,10 @@ init_table(Table, #{columns := ColumnsWithDef} = TableDef) ->
                ColumnsWithDef
               ),
   case maps:get(tags, TableDef, undefined) of
-    undefined ->
-      lager:info("No tags assoication needed");
+    undefined -> ok;
     TagName ->
-      lager:info("Creating Tags association ~p", [TagName]),
       tivan_tags:create(TagName)
   end,
-  lager:info("Initiaing creation of ~p", [{TableDef, Columns, Defaults}]),
   tivan:create(Table, TableDef#{columns => Columns, defaults => Defaults}).
 
 get_key(Columns) when is_map(Columns) -> get_key(maps:to_list(Columns));

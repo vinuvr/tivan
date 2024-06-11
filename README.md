@@ -19,8 +19,3 @@ Build
 -----
     $ rebar3 compile
 
-Build Options
--------------
-- Export the below environment variables to skip building rocksdb and instead use the system provided rocksdb shared library
-- export ERLANG_ROCKSDB_OPTS=-DWITH_SYSTEM_ROCKSDB=ON -DWITH_SNAPPY=ON -DWITH_LZ4=ON
-

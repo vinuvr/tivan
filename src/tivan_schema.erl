@@ -259,14 +259,13 @@ do_create(Table, Options) ->
   Persist = maps:get(persist, Options, true),
   Type = maps:get(type, Options, set),
   StorageRequest = if Memory, Persist, SchemaPersistFlag -> disc_copies;
-                      Persist, SchemaPersistFlag -> rocksdb_copies;
+                      Persist, SchemaPersistFlag -> disc_only_copies;
                       Memory -> ram_copies;
                       true -> remote_copies
                    end,
   StorageType = case catch mnesia:table_info(Table, storage_type) of
                   {'EXIT', _Reason} -> not_found;
                   unknown -> remote_copies;
-                  {ext,rocksdb_copies,mnesia_rocksdb} -> rocksdb_copies;
                   St -> St
                 end,
   case {StorageType, StorageRequest} of
@@ -328,42 +327,34 @@ get_attributes_indexes(_Other) ->
   {[key, value], []}.
 
 wait_for_tables(Tables, Time) ->
-  lager:info("Waiting for tables ~p for ~p milliseconds", [Tables, Time]),
   case mnesia:wait_for_tables(Tables, Time) of
     {timeout, TablesToLoad} ->
-      lager:info("Tables still loading ~p", [TablesToLoad]),
       TimeToWait = if Time > 5000 -> Time div 2; true -> Time end,
       wait_for_tables(TablesToLoad, TimeToWait);
     {error, Reason} ->
-      lager:error("Failed to load ~p", [Reason]);
+      exit(Reason);
     ok ->
-      lager:info("Completed loading tables.")
+      ok
   end.
 
 transform_if_needed(Table, Attributes, Indexes, Options) ->
   TransformFlag = maps:get(transform, Options, true),
   case mnesia:table_info(Table, attributes) of
     Attributes ->
-      lager:info("The attributes are the same so no need to transform ~p", [Attributes]),
       IndexesExisting = [ lists:nth(X-1, Attributes)
                           || X <- mnesia:table_info(Table, index) ],
       IndexesToDelete = IndexesExisting -- Indexes,
       [ mnesia:del_table_index(Table, Index) || Index <- IndexesToDelete ],
       IndexesToAdd = Indexes -- IndexesExisting,
       [ mnesia:add_table_index(Table, Index) || Index <- IndexesToAdd ];
-    AttributesExisting when not TransformFlag ->
-      lager:error("The attributes are different ~p vs ~p.BUT transform flag not set."
-                ,[AttributesExisting, Attributes]);
+    _AttributesExisting when not TransformFlag -> ok;
     AttributesExisting ->
-      lager:info("The attributes are different ~p vs ~p.Thus initiating table transform"
-                ,[AttributesExisting, Attributes]),
       IndexesExisting = [ lists:nth(X-1, AttributesExisting)
                           || X <- mnesia:table_info(Table, index) ],
       [ mnesia:del_table_index(Table, Index) || Index <- IndexesExisting ],
       Defaults = maps:get(defaults, Options, #{}),
       TransformFun = transform_function(Table, AttributesExisting, Attributes, Defaults),
-      TRes = mnesia:transform_table(Table, TransformFun, Attributes),
-      lager:info("Transform table response ~p", [TRes]),
+      {atomic, ok} = mnesia:transform_table(Table, TransformFun, Attributes),
       [ mnesia:add_table_index(Table, Index) || Index <- Indexes ]
   end.
 
