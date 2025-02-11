@@ -266,7 +266,7 @@ do_create(Table, Options) ->
   StorageType = case catch mnesia:table_info(Table, storage_type) of
                   {'EXIT', _Reason} -> not_found;
                   unknown -> remote_copies;
-                  {ext,rocksdb_copies,mnesia_rocksdb} -> rocksdb_copies;
+                  %{ext,rocksdb_copies,mnesia_rocksdb} -> rocksdb_copies;
                   St -> St
                 end,
   case {StorageType, StorageRequest} of
