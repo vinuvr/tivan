@@ -1,15 +1,7 @@
 {"1.2.0",
 [{<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},1},
  {<<"lager">>,{pkg,<<"lager">>,<<"3.9.2">>},0},
- {<<"mnesia_rocksdb">>,
-  {git,"https://gitlab.com/arknode.io/mnesia_rocksdb.git",
-       {ref,"e3aa95089c4a31d2f9a4d5e8cff75b5f2518f3b4"}},
-  0},
  {<<"quickrand">>,{pkg,<<"quickrand">>,<<"2.0.2">>},1},
- {<<"rocksdb">>,
-  {git,"https://gitlab.com/arknode.io/erlang-rocksdb.git",
-       {ref,"a570f3d10dc8a91daf774d19b248cec5a08ddc34"}},
-  1},
  {<<"sext">>,{pkg,<<"sext">>,<<"1.6.0">>},1},
  {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"2.0.2">>},0}]}.
 [
